@@ -2,10 +2,13 @@ from glob import glob
 from pathlib import Path
 from argparse import ArgumentParser
 from large_spinda import to_spindas
-import json
+import numpy as np
+import multiprocessing
 
-GENERATIONS = 10
-POPULATION = 100
+try:
+    cpus = multiprocessing.cpu_count()
+except NotImplementedError:
+    cpus = 2   # arbitrary default
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -18,11 +21,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # find all input images
-    inputs = glob(args.input_directory + "/*")
+    inputs = np.sort(glob(args.input_directory + "/*"))
 
     # create output directories if they don't exist
     Path(args.output_directory).mkdir(parents=True, exist_ok=True)
     Path(args.output_directory + "/pids").mkdir(parents=True, exist_ok=True)
+
+    pool = multiprocessing.Pool(processes=cpus)
 
     for n, filename in enumerate(inputs):
         print(f"STARTING FRAME #{n:0>4}! — ({n/len(inputs) * 100}%)")
@@ -43,11 +48,9 @@ if __name__ == '__main__':
             print("frame already found! skipping.")
             continue
 
-        (img, pids) = to_spindas(filename, POPULATION, GENERATIONS)
+        (img, pids) = to_spindas(filename, pool)
 
         output_filename = args.output_directory + f"/frame{n:0>4}.png"
         img.save(output_filename)
 
-        # write PIDs to JSON files:
-        with open(args.output_directory + f"/pids/frame{n:0>4}.json", "w") as f:
-            json.dump(pids, f)
+        np.savetxt(args.output_directory + f"/pids/frame{n:0>4}.json", pids)

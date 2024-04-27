@@ -1,0 +1,13 @@
+name: spindafy
+
+channels:
+ - conda-forge
+
+dependencies:
+ - pip
+ - psutil
+ - numpy
+ - scipy
+ - pandas
+ - pillow
+ - scikit-learn

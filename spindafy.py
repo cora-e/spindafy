@@ -36,7 +36,15 @@ class SpindaConfig:
         self.spots[2] = ((pers & 0x000f0000) >> 16, (pers & 0x00f00000) >> 20)
         self.spots[3] = ((pers & 0x0f000000) >> 24, (pers & 0xf0000000) >> 28)
         return self
-    
+
+    @staticmethod
+    def from_spot_locs(spot_locs):
+        spot_locs = np.clip(spot_locs, 0, 15)
+        self = SpindaConfig()
+        for i in range(4):
+            self.spots[i] = (int(spot_locs[2*i]), int(spot_locs[2*i+1]))
+        return self
+
     @staticmethod
     def random():
         return SpindaConfig.from_personality(randint(0, 0x100000000))
@@ -47,50 +55,33 @@ class SpindaConfig:
             pers = pers | (spot[0] << i*8) | (spot[1] << i*8+4)
         return pers
 
-    def is_spot_n(self, pos, n):
-        pos_adjusted = (
-            pos[0] - self.spot_offsets[n][0] - self.spots[n][0],
-            pos[1] - self.spot_offsets[n][1] - self.spots[n][1]
-        )
-        mask = self.spot_masks[n]
-
-        # if the position lies outside the spot image: return false
-        if pos_adjusted[0] < 0 or pos_adjusted[1] < 0 or pos_adjusted[0] >= len(mask[0]) or pos_adjusted[1] >= len(mask):
-            return False
-        
-        # else: return true if the corresponding pixel is opaque
-        mask_pixel = mask[pos_adjusted[1]][pos_adjusted[0]][3]
-        if mask_pixel == 255:
-            return True
-        return False
-
-    def is_spot(self, pos):
-        if self.is_spot_n(pos, 0): return True
-        if self.is_spot_n(pos, 1): return True
-        if self.is_spot_n(pos, 2): return True
-        if self.is_spot_n(pos, 3): return True
-        return False
+    def is_spot_arr(self):
+        ret = np.zeros_like(self.sprite_base)[:,:,0]
+        # Make a mask where the spots will be
+        for i in range(len(self.spots)):
+            x = self.spot_offsets[i][0] + self.spots[i][0]
+            y = self.spot_offsets[i][1] + self.spots[i][1]
+            mask = self.spot_masks[i][:,:,3]
+            ret[y:y+mask.shape[0], x:x+mask.shape[1]] += mask == 255
+        return ret
 
     def render_pattern(self, only_pattern = False, crop = False):
-        size = self.sprite_base.size
-        img = self.sprite_base.copy()
-
         mask_arr = np.asarray(self.sprite_mask)
+        img_arr = np.zeros_like(self.sprite_base)
+        if only_pattern:
+            # White spots on black bkg
+            spots_arr = 255*np.ones_like(self.sprite_base)
+            bkg_arr = np.zeros_like(self.sprite_base)
+            bkg_arr[:,:,3] = 255
+        else:
+            # Pull spots from mask, bkg from base sprite
+            spots_arr = mask_arr
+            bkg_arr = np.asarray(self.sprite_base)
+        spots = self.is_spot_arr()
+        for i in range(4):
+            img_arr[:,:,i] = np.where(np.logical_and(spots, mask_arr[:,:,3]), spots_arr[:,:,i], bkg_arr[:,:,i])
 
-        draw = ImageDraw.ImageDraw(img)
-
-        for x in range(size[0]):
-            for y in range(size[1]):
-                # apply mask
-                mask_pixel = tuple(mask_arr[y][x])
-
-                if self.is_spot((x, y)) and mask_pixel[3] != 0:
-                    if only_pattern:
-                        draw.point((x, y), (255, 255, 255, 255))
-                    else:
-                        draw.point((x, y), mask_pixel)
-                elif only_pattern:
-                        draw.point((x, y), (0, 0, 0, 255))
+        img = Image.fromarray(img_arr)
 
         if crop: img = img.crop((17, 15, 52, 48))
 
@@ -98,18 +89,9 @@ class SpindaConfig:
 
     def get_difference(self, target):
         result = self.render_pattern(only_pattern=True, crop=True).convert("RGB")
-        diff = ImageChops.difference(target, result)
-
-        total_diff = 0
-        for x in range(result.size[0]):
-            for y in range(result.size[1]):
-                pix = diff.getpixel((x, y))
-                val = (pix[0] + pix[1] + pix[2])/3
-                total_diff += val
-
-        return total_diff
+        return np.sum(ImageChops.difference(target, result)) / 3
 
 if __name__ == "__main__":
-    spin = SpindaConfig.from_personality(0x7a397866)
+    spin = SpindaConfig.from_personality(0x000FF0FF)
     spin.render_pattern().show()
     #print(hex(spin.get_personality()))
