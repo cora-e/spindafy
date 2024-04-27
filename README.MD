@@ -1,7 +1,7 @@
 # Spindafy
 This is a simple script to find a personality value (PID) that most closely matches a target image when applied as a pattern to the Pokémon Spinda!
 
-You should go see the [original](https://github.com/Ovidios/spindafy), this is just a tribute.  I was inspired by [adef's vid](https://www.youtube.com/watch?v=BuV_9XW8ymo), of course, and the spirit of procrastination.  All credit for the real work was them, I'm just playing with the result.
+You should go see the [original](https://github.com/Ovidios/spindafy), this is just a tribute.  I was inspired by [adef's vid](https://www.youtube.com/watch?v=BuV_9XW8ymo), of course, and the spirit of procrastination.  All credit for the real work goes to them, I'm just playing with the result.
 
 This version has been optimized for speed a bit, most prominently by replacing the cool genetic algorithm with a much less cool but ~60x faster call out to scipy's bounded `minimize` (L-BFGS-B I guess?).  I had to use a custom Jacobian since the loss function between original and "Spindafied" image is discrete (can't have a spot between pixels!).  I've learned that apparently optimizing a discrete function, even an approximant of a nice smooth one, sucks a lot! So the solver struggles: while the results are faster, they lack the same visual fideility ("Spidelity?") as the original.  Doesn't stop me from doing crimes:
 ![adef has an announcement](res/adef_announcement.gif)
